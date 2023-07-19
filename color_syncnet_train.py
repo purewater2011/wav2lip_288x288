@@ -130,7 +130,8 @@ class Dataset(object):
 
             return x, mel, y
 
-logloss = nn.BCELoss()
+# logloss = nn.BCELoss()
+logloss = nn.BCEWithLogitsLoss()
 def cosine_loss(a, v, y):
     d = nn.functional.cosine_similarity(a, v)
     loss = logloss(d.unsqueeze(1), y)
@@ -144,6 +145,7 @@ def train(device, model, train_data_loader, test_data_loader, optimizer,
     resumed_step = global_step
     
     while global_epoch < nepochs:
+        print('epoch:' + str(global_epoch))
         running_loss = 0.
         prog_bar = tqdm(enumerate(train_data_loader))
         for step, (x, mel, y) in prog_bar:

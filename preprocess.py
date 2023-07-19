@@ -36,6 +36,7 @@ template = 'ffmpeg -loglevel panic -y -i {} -strict -2 {}'
 # template2 = 'ffmpeg -hide_banner -loglevel panic -threads 1 -y -i {} -async 1 -ac 1 -vn -acodec pcm_s16le -ar 16000 {}'
 
 def process_video_file(vfile, args, gpu_id):
+	print(f'start capture video,file:{vfile}')
 	video_stream = cv2.VideoCapture(vfile)
 	
 	frames = []
@@ -53,7 +54,7 @@ def process_video_file(vfile, args, gpu_id):
 	os.makedirs(fulldir, exist_ok=True)
 
 	batches = [frames[i:i + args.batch_size] for i in range(0, len(frames), args.batch_size)]
-
+	print('start detect face')
 	i = -1
 	for fb in batches:
 		preds = fa[gpu_id].get_detections_for_batch(np.asarray(fb))
