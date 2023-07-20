@@ -80,8 +80,8 @@ hparams = HParams(
 	initial_learning_rate=1e-4,
 	nepochs=200000000000000000,  ### ctrl + c, stop whenever eval loss is consistently greater than train loss for ~10 epochs
 	num_workers=20,
-	checkpoint_interval=1000,
-	eval_interval=1000,
+	checkpoint_interval=10, # todo
+	eval_interval=10, # todo
     save_optimizer_state=True,
 	checkpoint_save_limit=3,
 

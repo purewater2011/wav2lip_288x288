@@ -232,7 +232,7 @@ def train(device, model, disc, train_data_loader, test_data_loader, optimizer, d
     resumed_step = global_step
 
     while global_epoch < nepochs:
-        print('Starting Epoch: {}'.format(global_epoch))
+        print('Starting Epoch: {}, Total Steps: {}'.format(global_epoch, global_step))
         running_sync_loss, running_l1_loss, disc_loss, running_perceptual_loss = 0., 0., 0., 0.
         running_disc_real_loss, running_disc_fake_loss = 0., 0.
         prog_bar = tqdm(enumerate(train_data_loader))
