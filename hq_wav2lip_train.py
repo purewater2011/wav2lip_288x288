@@ -39,6 +39,32 @@ print('use_cuda: {}'.format(use_cuda))
 syncnet_T = 5
 syncnet_mel_step_size = 16
 
+history_samples = []
+history_checkpoints = []
+history_disc_checkpoints = []
+
+
+def checkpoint_save_limit(switch, folder):
+    if switch == 'samples':
+        history_samples.append(folder)
+    elif switch == 'disc':
+        history_disc_checkpoints.append(folder)
+    else:
+        history_checkpoints.append(folder)
+    limit = hparams.checkpoint_save_limit
+    old = ''
+    if len(history_samples) > limit:
+        old = history_samples.pop(0)
+    elif len(history_disc_checkpoints) > limit:
+        old = history_disc_checkpoints.pop(0)
+    elif len(history_checkpoints) > limit:
+        old = history_checkpoints.pop(0)
+    if os.path.isdir(old):
+        os.rmdir(old)
+    elif os.path.isfile(old):
+        os.remove(old)
+
+
 class Dataset(object):
     def __init__(self, split):
         self.all_videos = get_image_list(args.data_root, split)
@@ -177,6 +203,7 @@ def save_sample_images(x, g, gt, global_step, checkpoint_dir):
     for batch_idx, c in enumerate(collage):
         for t in range(len(c)):
             cv2.imwrite('{}/{}_{}.jpg'.format(folder, batch_idx, t), c[t])
+    checkpoint_save_limit('samples', folder)
 
 logloss = nn.BCELoss()
 def cosine_loss(a, v, y):
@@ -361,6 +388,10 @@ def save_checkpoint(model, optimizer, step, checkpoint_dir, epoch, prefix=''):
         "global_step": step,
         "global_epoch": epoch,
     }, checkpoint_path)
+    if len(prefix) > 0:
+        checkpoint_save_limit('disc', checkpoint_path)
+    else:
+        checkpoint_save_limit('check', checkpoint_path)
     print("Saved checkpoint:", checkpoint_path)
 
 def _load(checkpoint_path):

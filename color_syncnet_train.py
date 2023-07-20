@@ -34,6 +34,19 @@ print('use_cuda: {}'.format(use_cuda))
 syncnet_T = 5
 syncnet_mel_step_size = 16
 
+history_checkpoints = []
+def checkpoint_save_limit(folder):
+    history_checkpoints.append(folder)
+    limit = hparams.checkpoint_save_limit
+    old = ''
+    if len(history_checkpoints) > limit:
+        old = history_checkpoints.pop(0)
+    if os.path.isdir(old):
+        os.rmdir(old)
+    elif os.path.isfile(old):
+        os.remove(old)
+
+
 class Dataset(object):
     def __init__(self, split):
         self.all_videos = get_image_list(args.data_root, split)
@@ -145,7 +158,7 @@ def train(device, model, train_data_loader, test_data_loader, optimizer,
     resumed_step = global_step
     
     while global_epoch < nepochs:
-        print('epoch:' + str(global_epoch))
+        print('Starting Epoch: {}'.format(global_epoch))
         running_loss = 0.
         prog_bar = tqdm(enumerate(train_data_loader))
         for step, (x, mel, y) in prog_bar:
@@ -210,7 +223,7 @@ def eval_model(test_data_loader, global_step, device, model, checkpoint_dir):
 def save_checkpoint(model, optimizer, step, checkpoint_dir, epoch):
 
     checkpoint_path = join(
-        checkpoint_dir, "checkpoint_step{:09d}.pth".format(global_step))
+        checkpoint_dir, "expert_checkpoint_step{:09d}.pth".format(global_step))
     optimizer_state = optimizer.state_dict() if hparams.save_optimizer_state else None
     torch.save({
         "state_dict": model.state_dict(),
