@@ -41,6 +41,8 @@ def checkpoint_save_limit(folder):
     old = ''
     if len(history_checkpoints) > limit:
         old = history_checkpoints.pop(0)
+    if len(old) > 0:
+        print('delete checkpoint: ' + old)
     if os.path.isdir(old):
         os.rmdir(old)
     elif os.path.isfile(old):
@@ -231,6 +233,7 @@ def save_checkpoint(model, optimizer, step, checkpoint_dir, epoch):
         "global_step": step,
         "global_epoch": epoch,
     }, checkpoint_path)
+    checkpoint_save_limit(checkpoint_path)
     print("Saved checkpoint:", checkpoint_path)
 
 def _load(checkpoint_path):
