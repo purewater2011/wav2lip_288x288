@@ -59,6 +59,8 @@ def checkpoint_save_limit(switch, folder):
         old = history_disc_checkpoints.pop(0)
     elif len(history_checkpoints) > limit:
         old = history_checkpoints.pop(0)
+    if len(old) > 0:
+        print('Delete checkpoint: ' + old)
     if os.path.isdir(old):
         os.rmdir(old)
     elif os.path.isfile(old):
