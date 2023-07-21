@@ -11,7 +11,7 @@ args = parser.parse_args()
 # cmd = f"ffmpeg -y -r 25 -i {new_name} 25fps.mp4"
 
 def convertVideo2Fps(src):
-    cmd = f"ffmpeg -i {src} -r 25 25fps.mp4 -y"
+    cmd = f"ffmpeg -loglevel error -hwaccel auto -i {src} -r 25 25fps.mp4 -y"
     # cmd = f"ffmpeg -y -r 25 -i {src} 25fps.mp4"
     os.system(cmd)
     print(f'remove src: {src}')
