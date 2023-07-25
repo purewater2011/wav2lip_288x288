@@ -66,7 +66,7 @@ def checkpoint_save_limit(switch, folder):
             os.rmdir(old)
         elif os.path.isfile(old):
             os.remove(old)
-    except Exception as e:
+    except Exception as ex:
         print("出现如下异常:%s" % ex)
 
 class Dataset(object):
