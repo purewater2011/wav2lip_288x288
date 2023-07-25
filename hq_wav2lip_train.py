@@ -61,11 +61,13 @@ def checkpoint_save_limit(switch, folder):
         old = history_checkpoints.pop(0)
     if len(old) > 0:
         print('Delete checkpoint: ' + old)
-    if os.path.isdir(old):
-        os.rmdir(old)
-    elif os.path.isfile(old):
-        os.remove(old)
-
+    try:
+        if os.path.isdir(old):
+            os.rmdir(old)
+        elif os.path.isfile(old):
+            os.remove(old)
+    except Exception as e:
+        print("出现如下异常:%s" % ex)
 
 class Dataset(object):
     def __init__(self, split):
