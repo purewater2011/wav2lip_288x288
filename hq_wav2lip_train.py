@@ -1,3 +1,4 @@
+import shutil
 from os.path import dirname, join, basename, isfile
 from tqdm import tqdm
 
@@ -63,7 +64,7 @@ def checkpoint_save_limit(switch, folder):
         print('Delete checkpoint: ' + old)
     try:
         if os.path.isdir(old):
-            os.rmdir(old)
+            shutil.rmtree(old)
         elif os.path.isfile(old):
             os.remove(old)
     except Exception as ex:
