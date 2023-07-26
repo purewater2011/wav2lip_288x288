@@ -216,7 +216,7 @@ def main():
 
 	if not args.audio.endswith('.wav'):
 		print('Extracting raw audio...')
-		command = 'ffmpeg -y -i {} -strict -2 {}'.format(args.audio, 'temp/temp.wav')
+		command = 'ffmpeg -loglevel error -hwaccel auto -y -i {} -strict -2 {}'.format(args.audio, 'temp/temp.wav')
 
 		subprocess.call(command, shell=True)
 		args.audio = 'temp/temp.wav'
@@ -262,7 +262,7 @@ def main():
 		with torch.no_grad():
 			pred = model(mel_batch, img_batch)
 
-		pred = pred.cpu().numpy().transpose(0, 2, 3, 1) * 255.
+		pred = pred.cuda().numpy().transpose(0, 2, 3, 1) * 255.
 		
 		for p, f, c in zip(pred, frames, coords):
 			y1, y2, x1, x2 = c
@@ -273,7 +273,7 @@ def main():
 
 	out.release()
 
-	command = 'ffmpeg -y -i {} -i {} -strict -2 -q:v 1 {}'.format(args.audio, 'temp/result.avi', args.outfile)
+	command = 'ffmpeg -loglevel error -hwaccel auto -y -i {} -i {} -strict -2 -q:v 1 {}'.format(args.audio, 'temp/result.avi', args.outfile)
 	subprocess.call(command, shell=platform.system() != 'Windows')
 
 if __name__ == '__main__':
