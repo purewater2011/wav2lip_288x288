@@ -210,8 +210,8 @@ def save_sample_images(x, g, gt, global_step, checkpoint_dir):
             cv2.imwrite('{}/{}_{}.jpg'.format(folder, batch_idx, t), c[t])
     checkpoint_save_limit('samples', folder)
 
-# logloss = nn.BCELoss()
-logloss = nn.BCEWithLogitsLoss()
+logloss = nn.BCELoss()
+# logloss = nn.BCEWithLogitsLoss()
 def cosine_loss(a, v, y):
     d = nn.functional.cosine_similarity(a, v)
     loss = logloss(d.unsqueeze(1), y)

@@ -262,7 +262,7 @@ def main():
 		with torch.no_grad():
 			pred = model(mel_batch, img_batch)
 
-		pred = pred.cuda().numpy().transpose(0, 2, 3, 1) * 255.
+		pred = pred.cpu().numpy().transpose(0, 2, 3, 1) * 255.
 		
 		for p, f, c in zip(pred, frames, coords):
 			y1, y2, x1, x2 = c
