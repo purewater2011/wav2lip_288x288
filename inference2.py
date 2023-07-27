@@ -260,7 +260,8 @@ for i, (img_batch, mel_batch, frames, coords) in enumerate(tqdm(gen,
 
 out.release()
 
-os.mkdir('results/')
+if not os.path.isdir('results'):
+    os.mkdir('results/')
 
 outfile = "results/result.mp4"  # 最终输出结果到该文件夹下
 command = 'ffmpeg -y -i {} -i {} -strict -2 -q:v 1 {}'.format(speech, 'temp/result_without_audio.mp4', outfile)
