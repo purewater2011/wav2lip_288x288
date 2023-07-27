@@ -47,6 +47,9 @@ else:  # 若输入的是视频格式
 
 print("Number of frames available for inference: " + str(len(full_frames)))
 
+if not os.path.isdir('temp'):
+    os.mkdir('temp/')
+
 # 检查输入的音频是否为 .wav格式的，若不是则进行转换
 if not speech.endswith('.wav'):
     print('Extracting raw audio...')
@@ -219,8 +222,6 @@ def load_model(path):
     model = model.to(device)
     return model.eval()
 
-
-os.mkdir('temp/')
 
 full_frames = full_frames[:len(mel_chunks)]
 
