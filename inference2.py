@@ -83,7 +83,7 @@ full_frames = full_frames[:len(mel_chunks)]
 
 batch_size = wav2lip_batch_size
 
-img_size = 288  # 默认的输入图片大小
+img_size = 96  # 默认的输入图片大小
 pads = [0, 20, 0, 0]  # 填充的长度，保证下巴也在抠图的范围之内
 nosmooth = False
 face_det_batch_size = 16
