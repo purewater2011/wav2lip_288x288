@@ -9,7 +9,7 @@ from models import Wav2Lip
 import platform
 import audio
 
-checkpoint_path = "/mnt2/wav2lip_288x288/checkpoints/wav2lip_gan.pth"  # 生成器的checkpoint位置
+checkpoint_path = "/mnt2/wav2lip_288x288/checkpoints/llzl2/checkpoint_step000002100.pth"  # 生成器的checkpoint位置
 face = "/mnt2/SadTalker/data/girl-word/test_llzl_tiny.mp4"  # 参照视频的文件位置, *.mp4
 speech = "/mnt2/SadTalker/data/girl-word/test_girl_tiny.mp3"  # 输入语音的位置，*.wav
 resize_factor = 1  # 对输入的视频进行下采样的倍率
