@@ -57,6 +57,8 @@ def process_video_file(vfile, args, gpu_id):
 	print('start detect face')
 	i = -1
 	for fb in batches:
+		print(fulldir)
+		exit(0)
 		preds = fa[gpu_id].get_detections_for_batch(np.asarray(fb))
 
 		for j, f in enumerate(preds):
