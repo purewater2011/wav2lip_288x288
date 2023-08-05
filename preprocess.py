@@ -53,13 +53,14 @@ def process_video_file(vfile, args, gpu_id):
 	fulldir = path.join(args.preprocessed_root, dirname, vidname)
 	os.makedirs(fulldir, exist_ok=True)
 
+	file_list = os.listdir(fulldir)
+	if len(file_list) > 15:
+		return
+
 	batches = [frames[i:i + args.batch_size] for i in range(0, len(frames), args.batch_size)]
 	print('start detect face')
 	i = -1
 	for fb in batches:
-		file_list = os.listdir(fulldir)
-		if len(file_list) > 5:
-			continue
 		preds = fa[gpu_id].get_detections_for_batch(np.asarray(fb))
 
 		for j, f in enumerate(preds):
