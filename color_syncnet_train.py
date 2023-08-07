@@ -162,8 +162,7 @@ def train(device, model, train_data_loader, test_data_loader, optimizer,
         if global_epoch > 0:
             each_step = global_step / global_epoch
         running_loss = 0.
-        if global_epoch == 0 or (each_step > 0 and global_step % (hparams.syncnet_eval_interval * each_step) == 0):
-            prog_bar = tqdm(enumerate(train_data_loader))
+        prog_bar = tqdm(enumerate(train_data_loader))
         for step, (x, mel, y) in prog_bar:
             model.train()
             optimizer.zero_grad()
