@@ -163,8 +163,10 @@ def train(device, model, train_data_loader, test_data_loader, optimizer,
 
     while global_epoch < nepochs:
         print('Starting Epoch: {}, Total Steps: {}'.format(global_epoch, global_step))
-        each_step = global_step / global_epoch
+        if global_epoch > 0:
+            each_step = global_step / global_epoch
         running_loss = 0.
+        print("step0-当前时间：", datetime.now())
         prog_bar = tqdm(enumerate(train_data_loader))
         for step, (x, mel, y) in prog_bar:
             print("step1-当前时间：", datetime.now())
