@@ -1,3 +1,4 @@
+import datetime
 from os.path import dirname, join, basename, isfile
 from tqdm import tqdm
 
@@ -158,36 +159,39 @@ def train(device, model, train_data_loader, test_data_loader, optimizer,
 
     global global_step, global_epoch
     resumed_step = global_step
-    
+    each_step = 0
+
     while global_epoch < nepochs:
         print('Starting Epoch: {}, Total Steps: {}'.format(global_epoch, global_step))
+        each_step = global_step / global_epoch
         running_loss = 0.
         prog_bar = tqdm(enumerate(train_data_loader))
         for step, (x, mel, y) in prog_bar:
+            print("step1-当前时间：", datetime.now())
             model.train()
             optimizer.zero_grad()
 
             # Transform data to CUDA device
             x = x.to(device)
-
+            print("step2-当前时间：", datetime.now())
             mel = mel.to(device)
-
+            print("step3-当前时间：", datetime.now())
             a, v = model(mel, x)
             y = y.to(device)
-
+            print("step4-当前时间：", datetime.now())
             loss = cosine_loss(a, v, y)
             loss.backward()
             optimizer.step()
-
+            print("step5-当前时间：", datetime.now())
             global_step += 1
             cur_session_steps = global_step - resumed_step
             running_loss += loss.item()
-
-            if global_step == 1 or global_step % checkpoint_interval == 0:
+            print("step6-当前时间：", datetime.now())
+            if global_step == 1 or global_step % (checkpoint_interval * each_step) == 0:
                 save_checkpoint(
                     model, optimizer, global_step, checkpoint_dir, global_epoch)
 
-            if global_step % hparams.syncnet_eval_interval == 0:
+            if global_step % (hparams.syncnet_eval_interval * each_step) == 0:
                 with torch.no_grad():
                     eval_model(test_data_loader, global_step, device, model, checkpoint_dir)
 
