@@ -83,7 +83,6 @@ class Dataset(object):
         return len(self.all_videos)
 
     def __getitem__(self, idx):
-        print("{}-当前时间：{}".format(idx, datetime.now()))
         while 1:
             idx = random.randint(0, len(self.all_videos) - 1)
             vidname = self.all_videos[idx]
@@ -164,7 +163,8 @@ def train(device, model, train_data_loader, test_data_loader, optimizer,
             each_step = global_step / global_epoch
         running_loss = 0.
         print("step0-当前时间：", datetime.now())
-        prog_bar = tqdm(enumerate(train_data_loader))
+        if global_epoch == 0 or (each_step > 0 and global_step % (hparams.syncnet_eval_interval * each_step) == 0):
+            prog_bar = tqdm(enumerate(train_data_loader))
         for step, (x, mel, y) in prog_bar:
             print("step1-当前时间：", datetime.now())
             model.train()
@@ -186,11 +186,11 @@ def train(device, model, train_data_loader, test_data_loader, optimizer,
             cur_session_steps = global_step - resumed_step
             running_loss += loss.item()
             print("step6-当前时间：", datetime.now())
-            if global_step == 1 or (global_step > 1 and global_step % (checkpoint_interval * each_step) == 0):
+            if global_step == 1 or (each_step > 0 and global_step % (checkpoint_interval * each_step) == 0):
                 save_checkpoint(
                     model, optimizer, global_step, checkpoint_dir, global_epoch)
 
-            if global_step > 1 and global_step % (hparams.syncnet_eval_interval * each_step) == 0:
+            if each_step > 0 and global_step % (hparams.syncnet_eval_interval * each_step) == 0:
                 with torch.no_grad():
                     eval_model(test_data_loader, global_step, device, model, checkpoint_dir)
 
