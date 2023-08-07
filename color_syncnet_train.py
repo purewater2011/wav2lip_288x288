@@ -85,6 +85,7 @@ class Dataset(object):
     def __getitem__(self, idx):
         while 1:
             idx = random.randint(0, len(self.all_videos) - 1)
+            print("{}-step1-当前时间：{}".format(idx, datetime.now()))
             vidname = self.all_videos[idx]
 
             img_names = list(glob(join(vidname, '*.jpg')))
@@ -94,7 +95,7 @@ class Dataset(object):
             wrong_img_name = random.choice(img_names)
             while wrong_img_name == img_name:
                 wrong_img_name = random.choice(img_names)
-
+            print("{}-step2-当前时间：{}".format(idx, datetime.now()))
             if random.choice([True, False]):
                 y = torch.ones(1).float()
                 chosen = img_name
@@ -120,7 +121,7 @@ class Dataset(object):
                     break
 
                 window.append(img)
-
+            print("{}-step3-当前时间：{}".format(idx, datetime.now()))
             if not all_read: continue
 
             try:
@@ -130,7 +131,7 @@ class Dataset(object):
                 orig_mel = audio.melspectrogram(wav).T
             except Exception as e:
                 continue
-
+            print("{}-step4-当前时间：{}".format(idx, datetime.now()))
             mel = self.crop_audio_window(orig_mel.copy(), img_name)
 
             if (mel.shape[0] != syncnet_mel_step_size):
@@ -143,7 +144,7 @@ class Dataset(object):
 
             x = torch.FloatTensor(x)
             mel = torch.FloatTensor(mel.T).unsqueeze(0)
-
+            print("{}-step5-当前时间：{}".format(idx, datetime.now()))
             return x, mel, y
 
 # logloss = nn.BCELoss()
@@ -189,11 +190,11 @@ def train(device, model, train_data_loader, test_data_loader, optimizer,
             cur_session_steps = global_step - resumed_step
             running_loss += loss.item()
             print("step6-当前时间：", datetime.now())
-            if global_step == 1 or global_step % (checkpoint_interval * each_step) == 0:
+            if global_step == 1 or (global_step > 1 and global_step % (checkpoint_interval * each_step) == 0):
                 save_checkpoint(
                     model, optimizer, global_step, checkpoint_dir, global_epoch)
 
-            if global_step % (hparams.syncnet_eval_interval * each_step) == 0:
+            if global_step > 1 and global_step % (hparams.syncnet_eval_interval * each_step) == 0:
                 with torch.no_grad():
                     eval_model(test_data_loader, global_step, device, model, checkpoint_dir)
 
