@@ -7,86 +7,55 @@ from glob import glob
 import torch, face_detection
 from models import Wav2Lip
 import platform
-import audio
+from hparams import hparams
 
-checkpoint_path = "/mnt2/wav2lip_288x288/checkpoints/llzl2/checkpoint_step000002100.pth"  # 生成器的checkpoint位置
-face = "/mnt2/SadTalker/data/girl-word/test_llzl_tiny.mp4"  # 参照视频的文件位置, *.mp4
-speech = "/mnt2/SadTalker/data/girl-word/test_girl_tiny.mp3"  # 输入语音的位置，*.wav
-resize_factor = 1  # 对输入的视频进行下采样的倍率
-crop = [0, -1, 0, -1]  # 是否对视频帧进行裁剪,处理视频中有多张人脸时有用
-fps = 25  # 视频的帧率
-static = False  # 是否只使用固定的一帧作为视频的生成参照
+parser = argparse.ArgumentParser(description='Inference code to lip-sync videos in the wild using Wav2Lip models')
 
-if not os.path.isfile(face):
-    raise ValueError('--face argument must be a valid path to video/image file')
+parser.add_argument('--checkpoint_path', type=str,
+                    help='Name of saved checkpoint to load weights from', required=True)
 
+parser.add_argument('--face', type=str,
+                    help='Filepath of video/image that contains faces to use', required=True)
+parser.add_argument('--audio', type=str,
+                    help='Filepath of video/audio file to use as raw audio source', required=True)
+parser.add_argument('--outfile', type=str, help='Video path to save result. See default for an e.g.',
+                    default='results/result_voice.mp4')
 
-else:  # 若输入的是视频格式
-    video_stream = cv2.VideoCapture(face)  # 读取视频
-    fps = video_stream.get(cv2.CAP_PROP_FPS)  # 读取 fps
+parser.add_argument('--static', type=bool,
+                    help='If True, then use only first video frame for inference', default=False)
+parser.add_argument('--fps', type=float, help='Can be specified only if input is a static image (default: 25)',
+                    default=25., required=False)
 
-    print('Reading video frames...')
+parser.add_argument('--pads', nargs='+', type=int, default=[0, 10, 0, 0],
+                    help='Padding (top, bottom, left, right). Please adjust to include chin at least')
 
-    full_frames = []
-    # 提取所有的帧
-    while 1:
-        still_reading, frame = video_stream.read()
-        if not still_reading:
-            video_stream.release()
-            break
-        if resize_factor > 1:  # 进行下采样，降低分辨率
-            frame = cv2.resize(frame, (frame.shape[1] // resize_factor, frame.shape[0] // resize_factor))
+parser.add_argument('--face_det_batch_size', type=int,
+                    help='Batch size for face detection', default=16)
+parser.add_argument('--wav2lip_batch_size', type=int, help='Batch size for Wav2Lip model(s)', default=128)
 
-        y1, y2, x1, x2 = crop  # 裁剪
-        if x2 == -1: x2 = frame.shape[1]
-        if y2 == -1: y2 = frame.shape[0]
+parser.add_argument('--resize_factor', default=1, type=int,
+                    help='Reduce the resolution by this factor. Sometimes, best results are obtained at 480p or 720p')
 
-        frame = frame[y1:y2, x1:x2]
+parser.add_argument('--crop', nargs='+', type=int, default=[0, -1, 0, -1],
+                    help='Crop video to a smaller region (top, bottom, left, right). Applied after resize_factor and rotate arg. '
+                         'Useful if multiple face present. -1 implies the value will be auto-inferred based on height, width')
 
-        full_frames.append(frame)
+parser.add_argument('--box', nargs='+', type=int, default=[-1, -1, -1, -1],
+                    help='Specify a constant bounding box for the face. Use only as a last resort if the face is not detected.'
+                         'Also, might work only if the face is not moving around much. Syntax: (top, bottom, left, right).')
 
-print("Number of frames available for inference: " + str(len(full_frames)))
+parser.add_argument('--rotate', default=False, action='store_true',
+                    help='Sometimes videos taken from a phone can be flipped 90deg. If true, will flip video right by 90deg.'
+                         'Use if you get a flipped result, despite feeding a normal looking video')
 
-if not os.path.isdir('temp'):
-    os.mkdir('temp/')
+parser.add_argument('--nosmooth', default=False, action='store_true',
+                    help='Prevent smoothing face detections over a short temporal window')
 
-# 检查输入的音频是否为 .wav格式的，若不是则进行转换
-if not speech.endswith('.wav'):
-    print('Extracting raw audio...')
-    command = 'ffmpeg -y -i {} -strict -2 {}'.format(speech, 'temp/temp.wav')
+args = parser.parse_args()
+args.img_size = hparams.img_size
 
-    subprocess.call(command, shell=True)
-    speech = 'temp/temp.wav'
-
-wav = audio.load_wav(speech, 16000)  # 保证采样率为16000
-mel = audio.melspectrogram(wav)
-print(mel.shape)
-
-wav2lip_batch_size = 128  # 推理时输入到网络的batchsize
-mel_step_size = 16
-
-# 提取语音的mel谱
-mel_chunks = []
-mel_idx_multiplier = 80. / fps
-i = 0
-while 1:
-    start_idx = int(i * mel_idx_multiplier)
-    if start_idx + mel_step_size > len(mel[0]):
-        mel_chunks.append(mel[:, len(mel[0]) - mel_step_size:])
-        break
-    mel_chunks.append(mel[:, start_idx: start_idx + mel_step_size])
-    i += 1
-
-print("Length of mel chunks: {}".format(len(mel_chunks)))
-
-full_frames = full_frames[:len(mel_chunks)]
-
-batch_size = wav2lip_batch_size
-
-img_size = 96  # 默认的输入图片大小
-pads = [0, 20, 0, 0]  # 填充的长度，保证下巴也在抠图的范围之内
-nosmooth = False
-face_det_batch_size = 16
+if os.path.isfile(args.face) and args.face.split('.')[1] in ['jpg', 'png', 'jpeg']:
+    args.static = True
 
 
 def get_smoothened_boxes(boxes, T):
@@ -99,12 +68,11 @@ def get_smoothened_boxes(boxes, T):
     return boxes
 
 
-# 人脸检测函数
 def face_detect(images):
     detector = face_detection.FaceAlignment(face_detection.LandmarksType._2D,
                                             flip_input=False, device=device)
 
-    batch_size = face_det_batch_size
+    batch_size = args.face_det_batch_size
 
     while 1:
         predictions = []
@@ -121,7 +89,7 @@ def face_detect(images):
         break
 
     results = []
-    pady1, pady2, padx1, padx2 = pads
+    pady1, pady2, padx1, padx2 = args.pads
     for rect, image in zip(predictions, images):
         if rect is None:
             cv2.imwrite('temp/faulty_frame.jpg', image)  # check this frame where the face was not detected.
@@ -135,46 +103,43 @@ def face_detect(images):
         results.append([x1, y1, x2, y2])
 
     boxes = np.array(results)
-    if not nosmooth: boxes = get_smoothened_boxes(boxes, T=5)
+    if not args.nosmooth: boxes = get_smoothened_boxes(boxes, T=5)
     results = [[image[y1: y2, x1:x2], (y1, y2, x1, x2)] for image, (x1, y1, x2, y2) in zip(images, boxes)]
 
     del detector
     return results
 
 
-box = [-1, -1, -1, -1]
-
-
 def datagen(frames, mels):
     img_batch, mel_batch, frame_batch, coords_batch = [], [], [], []
 
-    if box[0] == -1:  # 如果未指定 特定的人脸边界的话
-        if not static:  # 是否使用视频的第一帧作为参考
+    if args.box[0] == -1:
+        if not args.static:
             face_det_results = face_detect(frames)  # BGR2RGB for CNN face detection
         else:
             face_det_results = face_detect([frames[0]])
     else:
         print('Using the specified bounding box instead of face detection...')
-        y1, y2, x1, x2 = box
-        face_det_results = [[f[y1: y2, x1:x2], (y1, y2, x1, x2)] for f in frames]  # 裁剪出人脸结果
+        y1, y2, x1, x2 = args.box
+        face_det_results = [[f[y1: y2, x1:x2], (y1, y2, x1, x2)] for f in frames]
 
     for i, m in enumerate(mels):
-        idx = 0 if static else i % len(frames)
+        idx = 0 if args.static else i % len(frames)
         frame_to_save = frames[idx].copy()
         face, coords = face_det_results[idx].copy()
 
-        face = cv2.resize(face, (img_size, img_size))  # 重采样到指定大小
+        face = cv2.resize(face, (args.img_size, args.img_size))
 
         img_batch.append(face)
         mel_batch.append(m)
         frame_batch.append(frame_to_save)
         coords_batch.append(coords)
 
-        if len(img_batch) >= wav2lip_batch_size:
+        if len(img_batch) >= args.wav2lip_batch_size:
             img_batch, mel_batch = np.asarray(img_batch), np.asarray(mel_batch)
 
             img_masked = img_batch.copy()
-            img_masked[:, img_size // 2:] = 0
+            img_masked[:, args.img_size // 2:] = 0
 
             img_batch = np.concatenate((img_masked, img_batch), axis=3) / 255.
             mel_batch = np.reshape(mel_batch, [len(mel_batch), mel_batch.shape[1], mel_batch.shape[2], 1])
@@ -186,7 +151,7 @@ def datagen(frames, mels):
         img_batch, mel_batch = np.asarray(img_batch), np.asarray(mel_batch)
 
         img_masked = img_batch.copy()
-        img_masked[:, img_size // 2:] = 0
+        img_masked[:, args.img_size // 2:] = 0
 
         img_batch = np.concatenate((img_masked, img_batch), axis=3) / 255.
         mel_batch = np.reshape(mel_batch, [len(mel_batch), mel_batch.shape[1], mel_batch.shape[2], 1])
@@ -199,7 +164,6 @@ device = 'cuda' if torch.cuda.is_available() else 'cpu'
 print('Using {} for inference.'.format(device))
 
 
-# 加载模型
 def _load(checkpoint_path):
     if device == 'cuda':
         checkpoint = torch.load(checkpoint_path)
@@ -223,46 +187,105 @@ def load_model(path):
     return model.eval()
 
 
-full_frames = full_frames[:len(mel_chunks)]
+def main():
+    if not os.path.isfile(args.face):
+        raise ValueError('--face argument must be a valid path to video/image file')
 
-batch_size = wav2lip_batch_size
-gen = datagen(full_frames.copy(), mel_chunks)  # 进行人脸的裁剪与拼接，6通道
+    elif args.face.split('.')[1] in ['jpg', 'png', 'jpeg']:
+        full_frames = [cv2.imread(args.face)]
+        fps = args.fps
 
-for i, (img_batch, mel_batch, frames, coords) in enumerate(tqdm(gen,
-                                                                total=int(
-                                                                    np.ceil(float(len(mel_chunks)) / batch_size)))):
-    # 加载模型
-    if i == 0:
-        model = load_model(checkpoint_path)
-        print("Model loaded")
+    else:
+        video_stream = cv2.VideoCapture(args.face)
+        fps = video_stream.get(cv2.CAP_PROP_FPS)
 
-        frame_h, frame_w = full_frames[0].shape[:-1]
-        # 暂存临时视频
-        out = cv2.VideoWriter('temp/result_without_audio.mp4',
-                              cv2.VideoWriter_fourcc(*'DIVX'), fps, (frame_w, frame_h))
+        print('Reading video frames...')
 
-    img_batch = torch.FloatTensor(np.transpose(img_batch, (0, 3, 1, 2))).to(device)
-    mel_batch = torch.FloatTensor(np.transpose(mel_batch, (0, 3, 1, 2))).to(device)
+        full_frames = []
+        while 1:
+            still_reading, frame = video_stream.read()
+            if not still_reading:
+                video_stream.release()
+                break
+            if args.resize_factor > 1:
+                frame = cv2.resize(frame, (frame.shape[1] // args.resize_factor, frame.shape[0] // args.resize_factor))
 
-    ##### 将 img_batch, mel_batch送入模型得到pred
-    ##############TODO##############
-    with torch.no_grad():
-        pred = model(mel_batch, img_batch)
+            if args.rotate:
+                frame = cv2.rotate(frame, cv2.cv2.ROTATE_90_CLOCKWISE)
 
-    pred = pred.cpu().numpy().transpose(0, 2, 3, 1) * 255.
+            y1, y2, x1, x2 = args.crop
+            if x2 == -1: x2 = frame.shape[1]
+            if y2 == -1: y2 = frame.shape[0]
 
-    for p, f, c in zip(pred, frames, coords):
-        y1, y2, x1, x2 = c
-        p = cv2.resize(p.astype(np.uint8), (x2 - x1, y2 - y1))
+            frame = frame[y1:y2, x1:x2]
 
-        f[y1:y2, x1:x2] = p
-        out.write(f)
+            full_frames.append(frame)
 
-out.release()
+    print("Number of frames available for inference: " + str(len(full_frames)))
 
-if not os.path.isdir('results'):
-    os.mkdir('results/')
+    if not args.audio.endswith('.wav'):
+        print('Extracting raw audio...')
+        command = 'ffmpeg -y -i {} -strict -2 {}'.format(args.audio, 'temp/temp.wav')
 
-outfile = "results/result.mp4"  # 最终输出结果到该文件夹下
-command = 'ffmpeg -y -i {} -i {} -strict -2 -q:v 1 {}'.format(speech, 'temp/result_without_audio.mp4', outfile)
-subprocess.call(command, shell=platform.system() != 'Windows')
+        subprocess.call(command, shell=True)
+        args.audio = 'temp/temp.wav'
+
+    wav = audio.load_wav(args.audio, 16000)
+    mel = audio.melspectrogram(wav)
+    print(mel.shape)
+
+    if np.isnan(mel.reshape(-1)).sum() > 0:
+        raise ValueError('Mel contains nan! Using a TTS voice? Add a small epsilon noise to the wav file and try again')
+
+    mel_chunks = []
+    mel_idx_multiplier = 80. / fps
+    i = 0
+    while 1:
+        start_idx = int(i * mel_idx_multiplier)
+        if start_idx + mel_step_size > len(mel[0]):
+            mel_chunks.append(mel[:, len(mel[0]) - mel_step_size:])
+            break
+        mel_chunks.append(mel[:, start_idx: start_idx + mel_step_size])
+        i += 1
+
+    print("Length of mel chunks: {}".format(len(mel_chunks)))
+
+    full_frames = full_frames[:len(mel_chunks)]
+
+    batch_size = args.wav2lip_batch_size
+    gen = datagen(full_frames.copy(), mel_chunks)
+
+    for i, (img_batch, mel_batch, frames, coords) in enumerate(tqdm(gen,
+                                                                    total=int(
+                                                                        np.ceil(float(len(mel_chunks)) / batch_size)))):
+        if i == 0:
+            model = load_model(args.checkpoint_path)
+            print("Model loaded")
+
+            frame_h, frame_w = full_frames[0].shape[:-1]
+            out = cv2.VideoWriter('temp/result.avi',
+                                  cv2.VideoWriter_fourcc(*'DIVX'), fps, (frame_w, frame_h))
+
+        img_batch = torch.FloatTensor(np.transpose(img_batch, (0, 3, 1, 2))).to(device)
+        mel_batch = torch.FloatTensor(np.transpose(mel_batch, (0, 3, 1, 2))).to(device)
+
+        with torch.no_grad():
+            pred = model(mel_batch, img_batch)
+
+        pred = pred.cpu().numpy().transpose(0, 2, 3, 1) * 255.
+
+        for p, f, c in zip(pred, frames, coords):
+            y1, y2, x1, x2 = c
+            p = cv2.resize(p.astype(np.uint8), (x2 - x1, y2 - y1))
+
+            f[y1:y2, x1:x2] = p
+            out.write(f)
+
+    out.release()
+
+    command = 'ffmpeg -y -i {} -i {} -strict -2 -q:v 1 {}'.format(args.audio, 'temp/result.avi', args.outfile)
+    subprocess.call(command, shell=platform.system() != 'Windows')
+
+
+if __name__ == '__main__':
+    main()
